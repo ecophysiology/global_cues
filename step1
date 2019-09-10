@@ -61,10 +61,21 @@ def run_mod(year):
     all_columns = numpy.column_stack((year_list,site_list,temp,vpds,vpds_stdev))
     monthly_results = pandas.DataFrame(all_columns,columns=['year','site','avgT','vpd','stdev_vpd'])
     results = pandas.concat([results,monthly_results])
-    results.to_csv('your_path/cues_dataframe_'+str(year+1987)+'.csv',columns=['year','site','avgT','vpd','stdev_vpd'])    
+    results.to_csv('your_path/cues_dataframe_'+str(year+1987)+'.csv',columns=['year','site','avgT','vpd','stdev_vpd'])   
+    
+def compile_directory(directory):
+    all_years = glob.glob(directory)
+    results = pandas.DataFrame(columns=['year','site','avgT','vpd','stdev_vpd'])
+    for i in range(len(all_years)):
+        single_year = pandas.read_csv(all_years[i])
+        results = results.append(single_year)
+    results = results.sort_values('site')
+    results.to_csv('your_path/cues_dataframe_compiled.csv',columns=['year','site','avgT','vpd','stdev_vpd'])
 
 #---------------------#
 #--------SCRIPT-------#
 #---------------------#
 for i in range(31):
     run_mod(i)
+    
+compile_directory('your_path/*csv')
