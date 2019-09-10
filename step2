@@ -1,0 +1,84 @@
+#################
+#---LIBRARIES---#
+#################
+import pandas
+import numpy
+import glob
+from statsmodels.formula.api import ols
+from multiprocessing import cpu_count
+import multiprocessing
+
+#################
+#---FUNCTIONS---#
+#################
+
+def compile_directory(directory):
+    all_years = glob.glob(directory)
+    results = pandas.DataFrame(columns=['year','site','avgT','vpd','stdev_vpd'])
+    for i in range(len(all_years)):
+        single_year = pandas.read_csv(all_years[i])
+        results = results.append(single_year)
+    results = results.sort_values('site')
+    results.to_csv('your_path/cues_dataframe_compiled.csv',columns=['year','site','avgT','vpd','stdev_vpd'])
+
+def run_stats(groups):
+    temporary_dataframe = pandas.DataFrame(columns = ['site','pvalue','rsquared','slope','std_error'])
+    if numpy.mean(groups.vpd) == -32768:
+        slope = -9999#slope
+        slope_sde = -9999
+        pvalue = -9999
+        rsquared = -9999
+        site_name = groups['site'].iloc[0]
+        temporary_dataframe = temporary_dataframe.append(pandas.DataFrame([[site_name,pvalue,rsquared,slope,slope_sde]],columns = ['site','pvalue','rsquared','slope','std_error']))
+    else:
+        model = ols('vpd ~ avgT', groups)
+        ols_results = model.fit()
+        slope = ols_results.params[1]
+        slope_sde = ols_results.bse[1]
+        pvalue = ols_results.pvalues[1]
+        rsquared = ols_results.rsquared
+        site_name = groups['site'].iloc[0]
+        temporary_dataframe = temporary_dataframe.append(pandas.DataFrame([[site_name,pvalue,rsquared,slope,slope_sde]],columns = ['site','pvalue','rsquared','slope','std_error']))
+    return temporary_dataframe
+    
+def make_and_export_grid(data_list,file_name,header,N_rows):
+    _list = [data_list[i:i+N_rows] for i in range(0, len(data_list), N_rows)]
+    lines = []
+    for row in _list:
+            lines.append(' '.join(map(str, row)))
+    result = '\n '.join(lines)
+    f = open(file_name, 'wb')
+    f.writelines(str(header))
+    f.writelines(str(result))
+    f.close()
+
+def return_df_list(dataframe):
+    data_split = dataframe.groupby('site')
+    dataframes = [group for _, group in data_split]
+    return dataframes
+    
+def parallelize(list_of_dfs, func):
+	pool = multiprocessing.Pool(processes = 30)
+	data = pandas.concat(pool.map(func, list_of_dfs))
+	pool.close()
+	pool.join()
+	return data
+    
+def compile_csvs(directory):
+    dfs = glob.glob(directory)
+    results = pandas.DataFrame(columns=['site','pvalue','rsquared','slope','std_error'])
+    for i in range(len(dfs)):
+        df = pandas.read_csv(dfs[i])
+        results = results.append(df)
+    return results
+
+#################
+#-----SCRIPT----#
+#################
+
+chunk_counter = 0.0
+for chunk in pandas.read_csv('your_path/cues_dataframe_compiled.csv',chunksize = 11197440):
+    chunk = return_df_list(chunk)
+    chunk = parallelize(chunk,run_stats)
+    chunk.to_csv('your_path/vpd_cues_stats_'+str(chunk_counter)+'.csv',index=False,header=True,columns=['site','pvalue','rsquared','slope','std_error'])
+    chunk_counter += 1.0
