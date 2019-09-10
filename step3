@@ -1,0 +1,42 @@
+#################
+#---LIBRARIES---#
+#################
+import pandas
+import glob
+
+#################
+#---FUNCTIONS---#
+#################
+
+def compile_csvs(directory):
+    dfs = glob.glob(directory)
+    results = pandas.DataFrame(columns=['site','pvalue','rsquared','slope','std_error'])
+    for i in range(len(dfs)):
+        df = pandas.read_csv(dfs[i])
+        results = results.append(df)
+    return results
+    
+def make_and_export_grid(data_list,file_name,header,N_rows):
+    _list = [data_list[i:i+N_rows] for i in range(0, len(data_list), N_rows)]
+    lines = []
+    for row in _list:
+            lines.append(' '.join(map(str, row)))
+    result = '\n '.join(lines)
+    f = open(file_name, 'wb')
+    f.writelines(str(header))
+    f.writelines(str(result))
+    f.close()
+
+#################
+#------RUN------#
+#################
+header = 'ncols        8640\nnrows        4320\nxllcorner    -180.0\nyllcorner    -90.0\ncellsize     0.041666666666666664\nNODATA_value -9999\n '
+
+total_df = compile_csvs('cues_data/results/stats/*csv')
+total_df = total_df.sort_values(by=['site'])
+
+filename = 'your_path/vpd_by_temp_slope.asc'
+make_and_export_grid(total_df['slope'].tolist(),filename,header,4320)
+
+filename = 'your_path/vpd_by_temp_std_error.asc'
+make_and_export_grid(total_df['std_error'].tolist(),filename,header,4320)
